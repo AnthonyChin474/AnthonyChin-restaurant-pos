@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { ShoppingCart, Table } from "lucide-react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import CategoryTabs from "@/components/customer/CategoryTabs";
+import MenuGrid from "@/components/customer/MenuGrid";
+import OrderHistory from "@/components/customer/OrderHistory";
+import CartPanel from "@/components/customer/CartPanel";
+import ConfirmModal from "@/components/customer/ConfirmModal";
 
 interface MenuItem {
     id: number;
@@ -14,6 +19,7 @@ interface MenuItem {
     image_url: string | null;
     available: boolean;
     quantity?: number;
+    menu_code?: string;
 }
 
 interface Order {
@@ -43,10 +49,18 @@ export default function CustomerMenuPage() {
     const [menus, setMenus] = useState<MenuItem[]>([]);
     const [cart, setCart] = useState<MenuItem[]>([]);
     const [orders, setOrders] = useState<any[]>([]);
+    const [searchTerm, setSearchTerm] = useState("");
+
+    const [selectedCategory, setSelectedCategory] =
+        useState<number | null>(null);
+    const [categories, setCategories] =
+        useState<any[]>([]);
     const [lastOrder, setLastOrder] = useState<any>(null);
 
     const [showConfirm, setShowConfirm] =
         useState(false);
+
+
     async function placeOrder() {
         const { data: sessionData, error: sessionError } =
             await supabase
@@ -60,6 +74,23 @@ export default function CustomerMenuPage() {
             alert(`No active session found for table ${tableId}`);
             return;
         }
+
+        const filteredMenus = menus.filter((menu) => {
+
+            const matchCategory =
+                selectedCategory === null
+                    ? true
+                    : menu.category_id === selectedCategory;
+
+            const search = searchTerm.toLowerCase();
+
+            const matchSearch =
+                menu.name.toLowerCase().includes(search) ||
+                (menu.description || "")
+                    .toLowerCase().includes(search);
+
+            return matchCategory && matchSearch;
+        });
 
         const total = cart.reduce(
             (sum, item) =>
@@ -198,6 +229,22 @@ export default function CustomerMenuPage() {
         setMenus(data || []);
     }
 
+    async function loadCategories() {
+
+        const { data, error } =
+            await supabase
+                .from("categories")
+                .select("*")
+                .order("id");
+
+        if (error) {
+            console.log(error);
+            return;
+        }
+
+        setCategories(data || []);
+    }
+
     async function loadOrders() {
 
         const { data: sessionData } =
@@ -296,6 +343,22 @@ export default function CustomerMenuPage() {
         setCart(updatedCart);
     }
 
+    const filteredMenus = menus.filter((menu) => {
+        const matchCategory =
+            selectedCategory === null ||
+            menu.category_id === selectedCategory;
+
+        const keyword = searchTerm.toLowerCase();
+
+        const matchSearch =
+            menu.name.toLowerCase().includes(keyword) ||
+            menu.description.toLowerCase().includes(keyword) ||
+            (menu.menu_code || "")
+                .toLowerCase()
+                .includes(keyword);
+
+        return matchCategory && matchSearch;
+    });
     useEffect(() => {
 
         async function initializePage() {
@@ -321,6 +384,7 @@ export default function CustomerMenuPage() {
             }
 
             await loadMenus();
+            await loadCategories();
             await loadOrders();
         }
 
@@ -333,266 +397,172 @@ export default function CustomerMenuPage() {
         return () => clearInterval(interval);
 
     }, [tableId]);
+
+
     const total = cart.reduce(
         (sum, item) => sum + Number(item.price) * (item.quantity || 1),
         0,
     );
 
     return (
-        <div className="min-h-screen bg-gray-100">
-            <div className="max-w-6xl mx-auto p-6">
-                <div className="flex justify-between items-center mb-6">
+        <div className="min-h-screen bg-gray-100 overflow-x-hidden">
+            <div className="max-w-6xl mx-auto p-4 md:p-6">
+                <div className="flex items-center justify-between gap-4 mb-6">
                     <h1 className="text-3xl font-bold">Table {tableId}</h1>
 
-                    <div className="relative">
+                    <div
+                        className="
+    relative
+    shrink-0
+    cursor-pointer
+    ml-2
+    "
+                        onClick={() =>
+                            document
+                                .getElementById("cart-section")
+                                ?.scrollIntoView({
+                                    behavior: "smooth",
+                                })
+                        }
+                    >
                         <ShoppingCart size={32} />
 
                         {cart.length > 0 && (
                             <span
                                 className="
-          absolute
-          -top-2
-          -right-2
-          bg-red-500
-          text-white
-          text-xs
-          rounded-full
-          w-5
-          h-5
-          flex
-          items-center
-          justify-center
-        "
+            absolute
+            -top-2
+            -right-2
+            bg-red-500
+            text-white
+            text-xs
+            rounded-full
+            w-5
+            h-5
+            flex
+            items-center
+            justify-center
+            "
                             >
                                 {cart.length}
                             </span>
                         )}
                     </div>
                 </div>
+                <div className="md:hidden mb-4">
 
-                <div className="grid md:grid-cols-3 gap-6">
+                    <button
+                        onClick={() =>
+                            document
+                                .getElementById("cart-section")
+                                ?.scrollIntoView({
+                                    behavior: "smooth",
+                                })
+                        }
+                        className="
+        w-full
+        bg-green-600
+        text-white
+        py-3
+        rounded-lg
+        font-bold
+        "
+                    >
+                        View Cart ({cart.length})
+                    </button>
+
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Menu */}
 
-                    <div className="md:col-span-2">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {menus.map((menu) => (
-                                <div
-                                    key={menu.id}
-                                    className="bg-white rounded-xl shadow p-4"
-                                >
-                                    {menu.image_url && (
-                                        <img
-                                            src={menu.image_url}
-                                            alt={menu.name}
-                                            className="w-full h-48 object-cover rounded-lg mb-3"
-                                        />
-                                    )}
+                    <div className="md:col-span-2 min-w-0">
 
-                                    <h2 className="text-lg font-bold text-black">
-                                        {menu.name}
-                                    </h2>
-
-                                    {!menu.available && (
-                                        <div className="text-red-600 font-bold mb-2">
-                                            SOLD OUT
-                                        </div>
-                                    )}
-
-                                    <p className="text-gray-600 text-sm mb-2">
-                                        {menu.description}
-                                    </p>
-
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-bold text-green-600">
-                                            RM {menu.price}
-                                        </span>
-
-                                        <button
-                                            disabled={!menu.available}
-                                            onClick={() => addToCart(menu)}
-                                            className={
-                                                menu.available
-                                                    ? "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-                                                    : "bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed"
-                                            }
-                                        >
-                                            {menu.available
-                                                ? "Add"
-                                                : "Sold Out"}
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                        {/* Search */}
+                        <div className="mb-4">
+                            <input
+                                type="text"
+                                placeholder="Search menu (R1, Tonkotsu, Udon...)"
+                                value={searchTerm}
+                                onChange={(e) =>
+                                    setSearchTerm(e.target.value)
+                                }
+                                className="w-full border rounded-lg p-3 text-black"
+                            />
                         </div>
+
+                        {/* Category Tabs */}
+                        <CategoryTabs
+                            categories={categories}
+                            selectedCategory={selectedCategory}
+                            setSelectedCategory={setSelectedCategory}
+                        />
+
+                        {/* Menu Grid */}
+                        <MenuGrid
+                            menus={filteredMenus}
+                            addToCart={addToCart}
+                        />
+
                     </div>
 
                     {/* Cart */}
 
-                    <div className="bg-white rounded-xl shadow p-4 h-fit sticky top-4">
+                    <div
+                        id="cart-section"
+                        className="
+    bg-white
+    rounded-xl
+    shadow
+    p-4
+    h-fit
+    md:sticky
+    md:top-4
+    "
+                    >
                         <h2 className="text-2xl font-bold mb-4 text-black">
                             Cart
                         </h2>
 
-                        {orders.length > 0 && (
-                            <div className="mb-6">
-                                <h3 className="font-bold text-lg mb-2 text-black">
-                                    Your Orders
-                                </h3>
-
-                                {orders.map((order) => (
-                                    <div key={order.id} className="border rounded-lg p-3 mb-3">
-                                        <div className="font-bold text-black">
-                                            Order {order.order_number || order.id}
-                                        </div>
-
-                                        <div className="text-sm text-gray-500 mb-2">
-                                            {formatMalaysiaTime(order.created_at)}
-                                        </div>
-
-                                        {order.order_items.map((item: any, index: number) => (
-                                            <div key={index} className="text-sm text-black">
-                                                {item.menu_items?.name}
-                                                {" x"}
-                                                {item.quantity}
-                                            </div>
-                                        ))}
-
-                                        <div className="mt-2">
-                                            <span
-                                                className={`px-2 py-1 rounded text-xs ${order.status === "pending"
-                                                    ? "bg-yellow-100 text-yellow-700"
-                                                    : order.status === "preparing"
-                                                        ? "bg-blue-100 text-blue-700"
-                                                        : "bg-green-100 text-green-700"
-                                                    }`}
-                                            >
-                                                {order.status}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {cart.length === 0 ? (
-                            <p className="text-gray-500">No items selected</p>
-                        ) : (
-                            <>
-                                {cart.map((item) => (
-                                    <div key={item.id} className="border-b py-3">
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <p className="font-medium text-black">{item.name}</p>
-
-                                                <p className="text-sm text-gray-500">RM {item.price}</p>
-                                            </div>
-
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => decreaseQuantity(item.id)}
-                                                    className="w-8 h-8 bg-red-500 text-white rounded"
-                                                >
-                                                    -
-                                                </button>
-
-                                                <span className="font-bold text-black w-6 text-center">
-                                                    {item.quantity}
-                                                </span>
-
-                                                <button
-                                                    onClick={() => increaseQuantity(item.id)}
-                                                    className="w-8 h-8 bg-green-500 text-white rounded"
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="text-right text-sm text-gray-700 mt-1">
-                                            RM {(item.price * (item.quantity || 1)).toFixed(2)}
-                                        </div>
-                                    </div>
-                                ))}
-
-                                <div className="mt-4 font-bold text-xl text-black">
-                                    Total: RM {total.toFixed(2)}
-                                </div>
-
-                                <button
-                                    onClick={() => setShowConfirm(true)}
-                                    className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg"
-                                >
-                                    Place Order
-                                </button>
-                            </>
-                        )}
+                        <OrderHistory
+                            orders={orders}
+                            formatMalaysiaTime={
+                                formatMalaysiaTime
+                            }
+                        />
+                        <CartPanel
+                            cart={cart}
+                            total={total}
+                            increaseQuantity={
+                                increaseQuantity
+                            }
+                            decreaseQuantity={
+                                decreaseQuantity
+                            }
+                            onPlaceOrder={() =>
+                                setShowConfirm(true)
+                            }
+                        />
                     </div>
                 </div>
             </div>
-            {showConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
-
-                    <div className="bg-white rounded-xl p-6 w-[400px] shadow-xl">
-
-                        <h2 className="text-xl font-bold mb-4 text-black">
-                            Confirm Order
-                        </h2>
-
-                        <div className="space-y-2 mb-4">
-
-                            {cart.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="flex justify-between"
-                                >
-                                    <span>
-                                        {item.quantity}x {item.name}
-                                    </span>
-
-                                    <span>
-                                        RM{" "}
-                                        {(
-                                            item.price *
-                                            (item.quantity || 1)
-                                        ).toFixed(2)}
-                                    </span>
-                                </div>
-                            ))}
-
-                        </div>
-
-                        <div className="font-bold text-lg mb-4 text-black">
-                            Total: RM {total.toFixed(2)}
-                        </div>
-
-                        <div className="flex gap-3">
-
-                            <button
-                                onClick={() =>
-                                    setShowConfirm(false)
-                                }
-                                className="flex-1 bg-gray-500 text-white py-2 rounded"
-                            >
-                                Cancel
-                            </button>
-
-                            <button
-                                onClick={async () => {
-                                    setShowConfirm(false);
-                                    await placeOrder();
-                                }}
-                                className="flex-1 bg-green-600 text-white py-2 rounded"
-                            >
-                                Confirm
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                </div>
-            )}
+            <ConfirmModal
+                show={showConfirm}
+                cart={cart}
+                total={total}
+                onCancel={() =>
+                    setShowConfirm(false)
+                }
+                onConfirm={async () => {
+                    setShowConfirm(false);
+                    await placeOrder();
+                }}
+            />
 
         </div>
+
+
     );
+
+
 }
+
