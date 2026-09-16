@@ -9,6 +9,7 @@ import MenuGrid from "@/components/customer/MenuGrid";
 import OrderHistory from "@/components/customer/OrderHistory";
 import CartPanel from "@/components/customer/CartPanel";
 import ConfirmModal from "@/components/customer/ConfirmModal";
+import CartModal from "@/components/customer/CartModal";
 
 interface MenuItem {
     id: number;
@@ -59,7 +60,8 @@ export default function CustomerMenuPage() {
 
     const [showConfirm, setShowConfirm] =
         useState(false);
-
+    const [showCart, setShowCart] =
+        useState(false);
     const [addedMessage, setAddedMessage] =
         useState("");
     const [lastAdded, setLastAdded] =
@@ -508,19 +510,7 @@ export default function CustomerMenuPage() {
     "
                 >
                     <button
-                        onClick={() => {
-                            const cart =
-                                document.getElementById(
-                                    "cart-section"
-                                );
-
-                            if (!cart) return;
-
-                            window.scrollTo({
-                                top: cart.offsetTop - 80,
-                                behavior: "smooth",
-                            });
-                        }}
+                        onClick={() => setShowCart(true)}
                         className="
         bg-green-600
         text-white
@@ -569,44 +559,7 @@ export default function CustomerMenuPage() {
 
                     </div>
 
-                    {/* Cart */}
 
-                    <div
-                        id="cart-section"
-                        className="
-    bg-white
-    rounded-xl
-    shadow
-    p-4
-    h-fit
-    md:sticky
-    md:top-4
-    "
-                    >
-                        <h2 className="text-2xl font-bold mb-4 text-black">
-                            Cart
-                        </h2>
-
-                        <OrderHistory
-                            orders={orders}
-                            formatMalaysiaTime={
-                                formatMalaysiaTime
-                            }
-                        />
-                        <CartPanel
-                            cart={cart}
-                            total={total}
-                            increaseQuantity={
-                                increaseQuantity
-                            }
-                            decreaseQuantity={
-                                decreaseQuantity
-                            }
-                            onPlaceOrder={() =>
-                                setShowConfirm(true)
-                            }
-                        />
-                    </div>
                 </div>
             </div>
             <ConfirmModal
@@ -619,6 +572,21 @@ export default function CustomerMenuPage() {
                 onConfirm={async () => {
                     setShowConfirm(false);
                     await placeOrder();
+                }}
+            />
+
+            <CartModal
+                show={showCart}
+                cart={cart}
+                total={total}
+                orders={orders}
+                formatMalaysiaTime={formatMalaysiaTime}
+                increaseQuantity={increaseQuantity}
+                decreaseQuantity={decreaseQuantity}
+                onClose={() => setShowCart(false)}
+                onPlaceOrder={() => {
+                    setShowCart(false);
+                    setShowConfirm(true);
                 }}
             />
 
