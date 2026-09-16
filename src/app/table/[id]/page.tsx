@@ -426,7 +426,7 @@ export default function CustomerMenuPage() {
 
     return (
         <div className="min-h-screen bg-gray-100 overflow-x-hidden">
-            <div className="max-w-6xl mx-auto p-4 md:p-6">
+            <div className="max-w-6xl mx-auto p-4 md:p-6 pb-40">
                 <div className="flex items-center justify-between mb-6">
                     <h1 className="text-2xl md:text-3xl font-bold truncate">
                         Table {tableId}
