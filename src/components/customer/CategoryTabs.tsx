@@ -40,25 +40,6 @@ export default function CategoryTabs({
                 scrollbar-hide
                 "
             >
-                {/* All */}
-                <button
-                    onClick={() => {
-                        setSelectedCategory(null);
-                        document
-                            .getElementById("menu-top")
-                            ?.scrollIntoView({
-                                behavior: "smooth",
-                                block: "start",
-                            });
-                    }}
-                    className={
-                        selectedCategory === null
-                            ? "bg-blue-600 text-white px-4 py-2 rounded-lg whitespace-nowrap shrink-0"
-                            : "bg-gray-200 text-black px-4 py-2 rounded-lg whitespace-nowrap shrink-0"
-                    }
-                >
-                    All
-                </button>
 
                 {/* Categories */}
                 {categories.map((cat) => (

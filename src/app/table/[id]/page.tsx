@@ -52,7 +52,7 @@ export default function CustomerMenuPage() {
     const [searchTerm, setSearchTerm] = useState("");
 
     const [selectedCategory, setSelectedCategory] =
-        useState<number | null>(null);
+        useState<number | null>(1);
     const [categories, setCategories] =
         useState<any[]>([]);
     const [lastOrder, setLastOrder] = useState<any>(null);
@@ -402,6 +402,7 @@ export default function CustomerMenuPage() {
 
             await loadMenus();
             await loadCategories();
+            
             await loadOrders();
         }
 
