@@ -60,6 +60,10 @@ export default function CustomerMenuPage() {
     const [showConfirm, setShowConfirm] =
         useState(false);
 
+    const [addedMessage, setAddedMessage] =
+        useState("");
+    const [lastAdded, setLastAdded] =
+        useState("");
 
     async function placeOrder() {
         const { data: sessionData, error: sessionError } =
@@ -291,7 +295,18 @@ export default function CustomerMenuPage() {
 
 
     function addToCart(menu: MenuItem) {
-        const existing = cart.find((item) => item.id === menu.id);
+
+        setAddedMessage(
+            `${menu.name} added to cart`
+        );
+        setLastAdded(menu.name);
+        setTimeout(() => {
+            setAddedMessage("");
+        }, 1500);
+
+        const existing = cart.find(
+            (item) => item.id === menu.id
+        );
 
         if (existing) {
             setCart(
@@ -299,10 +314,11 @@ export default function CustomerMenuPage() {
                     item.id === menu.id
                         ? {
                             ...item,
-                            quantity: (item.quantity || 1) + 1,
+                            quantity:
+                                (item.quantity || 1) + 1,
                         }
-                        : item,
-                ),
+                        : item
+                )
             );
         } else {
             setCart([
@@ -314,6 +330,7 @@ export default function CustomerMenuPage() {
             ]);
         }
     }
+
 
     function increaseQuantity(menuId: number) {
         setCart(
@@ -407,15 +424,17 @@ export default function CustomerMenuPage() {
     return (
         <div className="min-h-screen bg-gray-100 overflow-x-hidden">
             <div className="max-w-6xl mx-auto p-4 md:p-6">
-                <div className="flex items-center justify-between gap-4 mb-6">
-                    <h1 className="text-3xl font-bold">Table {tableId}</h1>
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-2xl md:text-3xl font-bold truncate">
+                        Table {tableId}
+                    </h1>
 
                     <div
                         className="
     relative
     shrink-0
     cursor-pointer
-    ml-2
+    hidden md:block
     "
                         onClick={() =>
                             document
@@ -425,7 +444,9 @@ export default function CustomerMenuPage() {
                                 })
                         }
                     >
-                        <ShoppingCart size={32} />
+                        <div className="hidden md:block">
+                            <ShoppingCart size={32} />
+                        </div>
 
                         {cart.length > 0 && (
                             <span
@@ -449,8 +470,36 @@ export default function CustomerMenuPage() {
                         )}
                     </div>
                 </div>
-                <div className="md:hidden mb-4">
-
+                {
+                    addedMessage && (
+                        <div
+                            className="
+            fixed
+            bottom-20
+            left-1/2
+            -translate-x-1/2
+            bg-green-600
+            text-white
+            px-4
+            py-3
+            rounded-lg
+            z-50
+            shadow-lg
+            "
+                        >
+                            ✅ {lastAdded} added
+                        </div>
+                    )
+                }
+                <div
+                    className="
+    md:hidden
+    fixed
+    bottom-4
+    right-4
+    z-50
+    "
+                >
                     <button
                         onClick={() =>
                             document
@@ -460,17 +509,17 @@ export default function CustomerMenuPage() {
                                 })
                         }
                         className="
-        w-full
         bg-green-600
         text-white
+        px-5
         py-3
-        rounded-lg
+        rounded-full
+        shadow-lg
         font-bold
         "
                     >
-                        View Cart ({cart.length})
+                        🛒 {cart.length}
                     </button>
-
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Menu */}
@@ -478,16 +527,18 @@ export default function CustomerMenuPage() {
                     <div className="md:col-span-2 min-w-0">
 
                         {/* Search */}
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                placeholder="Search menu (R1, Tonkotsu, Udon...)"
-                                value={searchTerm}
-                                onChange={(e) =>
-                                    setSearchTerm(e.target.value)
-                                }
-                                className="w-full border rounded-lg p-3 text-black"
-                            />
+                        <div id="menu-top">
+                            <div className="mb-4">
+                                <input
+                                    type="text"
+                                    placeholder="Search menu (R1, Tonkotsu, Udon...)"
+                                    value={searchTerm}
+                                    onChange={(e) =>
+                                        setSearchTerm(e.target.value)
+                                    }
+                                    className="w-full border rounded-lg p-3 text-black"
+                                />
+                            </div>
                         </div>
 
                         {/* Category Tabs */}
