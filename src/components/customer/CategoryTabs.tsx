@@ -21,9 +21,9 @@ export default function CategoryTabs({
     return (
         <div
             className="
-            sticky
-            top-[60px]
-            z-40
+sticky
+top-0
+z-40
             bg-gray-100
             py-2
             mb-4

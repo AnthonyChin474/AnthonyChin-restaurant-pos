@@ -402,7 +402,7 @@ export default function CustomerMenuPage() {
 
             await loadMenus();
             await loadCategories();
-            
+
             await loadOrders();
         }
 
@@ -437,13 +437,19 @@ export default function CustomerMenuPage() {
     cursor-pointer
     hidden md:block
     "
-                        onClick={() =>
-                            document
-                                .getElementById("cart-section")
-                                ?.scrollIntoView({
-                                    behavior: "smooth",
-                                })
-                        }
+                        onClick={() => {
+                            const cart =
+                                document.getElementById(
+                                    "cart-section"
+                                );
+
+                            if (!cart) return;
+
+                            window.scrollTo({
+                                top: cart.offsetTop - 80,
+                                behavior: "smooth",
+                            });
+                        }}
                     >
                         <div className="hidden md:block">
                             <ShoppingCart size={32} />
@@ -502,13 +508,19 @@ export default function CustomerMenuPage() {
     "
                 >
                     <button
-                        onClick={() =>
-                            document
-                                .getElementById("cart-section")
-                                ?.scrollIntoView({
-                                    behavior: "smooth",
-                                })
-                        }
+                        onClick={() => {
+                            const cart =
+                                document.getElementById(
+                                    "cart-section"
+                                );
+
+                            if (!cart) return;
+
+                            window.scrollTo({
+                                top: cart.offsetTop - 80,
+                                behavior: "smooth",
+                            });
+                        }}
                         className="
         bg-green-600
         text-white
