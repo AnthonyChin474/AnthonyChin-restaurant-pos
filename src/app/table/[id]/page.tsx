@@ -1,8 +1,15 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { ShoppingCart, Table } from "lucide-react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import CategoryTabs from "@/components/customer/CategoryTabs";
+import MenuGrid from "@/components/customer/MenuGrid";
+import OrderHistory from "@/components/customer/OrderHistory";
+import CartPanel from "@/components/customer/CartPanel";
+import ConfirmModal from "@/components/customer/ConfirmModal";
+
 interface MenuItem {
     id: number;
     category_id: number;
@@ -10,8 +17,11 @@ interface MenuItem {
     description: string;
     price: number;
     image_url: string | null;
+    available: boolean;
     quantity?: number;
+    menu_code?: string;
 }
+
 interface Order {
     id: number;
     order_number: string | null;
@@ -19,6 +29,7 @@ interface Order {
     total: number;
     created_at: string;
 }
+
 export default function CustomerMenuPage() {
     function formatMalaysiaTime(dateString: string) {
         return new Date(dateString).toLocaleString("en-MY", {
@@ -32,15 +43,30 @@ export default function CustomerMenuPage() {
         });
     }
     const params = useParams();
+
     const tableId = Number(params.id);
+
     const [menus, setMenus] = useState<MenuItem[]>([]);
     const [cart, setCart] = useState<MenuItem[]>([]);
     const [orders, setOrders] = useState<any[]>([]);
+    const [searchTerm, setSearchTerm] = useState("");
+
+    const [selectedCategory, setSelectedCategory] =
+        useState<number | null>(null);
+    const [categories, setCategories] =
+        useState<any[]>([]);
     const [lastOrder, setLastOrder] = useState<any>(null);
+
     const [showConfirm, setShowConfirm] =
         useState(false);
+
+
     async function placeOrder() {
-        let sessionId: number;
+        if (cart.length === 0) {
+            alert("Your cart is empty.");
+            return;
+        }
+
         const { data: sessionData, error: sessionError } =
             await supabase
                 .from("table_sessions")
@@ -50,149 +76,168 @@ export default function CustomerMenuPage() {
                 .order("id", { ascending: false })
                 .limit(1)
                 .maybeSingle();
+
         if (sessionError) {
             console.error("SESSION LOOKUP ERROR:", sessionError);
             alert("Unable to check table status. Please try again.");
             return;
         }
+
+        let sessionId: number;
+
         if (sessionData) {
             sessionId = sessionData.id;
         } else {
             const { data: newSession, error: createSessionError } =
                 await supabase
                     .from("table_sessions")
-                    .insert([
-                        {
-                            table_id: tableId,
-                            status: "active",
-                        },
-                    ])
+                    .insert([{ table_id: tableId, status: "active" }])
                     .select("id")
                     .single();
+
             if (createSessionError || !newSession) {
                 console.error("CREATE SESSION ERROR:", createSessionError);
-                alert(
-                    createSessionError?.message ||
-                    "Unable to start this table session."
-                );
+                alert(createSessionError?.message || "Unable to start this table session.");
                 return;
             }
+
             sessionId = newSession.id;
         }
+
         const total = cart.reduce(
-            (sum, item) =>
-                sum + Number(item.price) * (item.quantity || 1),
+            (sum, item) => sum + Number(item.price) * (item.quantity || 1),
             0
         );
-        // ==========================
-        // Check existing active order
-        // ==========================
-        const { data: existingOrder } = await supabase
-            .from("orders")
-            .select("*")
-            .eq("session_id", sessionId)
-            .in("status", [
-                "pending",
-                "preparing",
-            ])
-            .order("id", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+
+        const { data: existingOrder, error: existingOrderError } =
+            await supabase
+                .from("orders")
+                .select("*")
+                .eq("session_id", sessionId)
+                .in("status", ["pending", "preparing"])
+                .order("id", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+        if (existingOrderError) {
+            console.error("EXISTING ORDER ERROR:", existingOrderError);
+            alert("Unable to check existing orders. Please try again.");
+            return;
+        }
+
         let orderId: number;
-        // ==========================
-        // Existing order found
-        // ==========================
+
         if (existingOrder) {
             orderId = existingOrder.id;
-            const { error: updateOrderError } = await supabase
+
+            const { error } = await supabase
                 .from("orders")
-                .update({
-                    total: Number(existingOrder.total) + total,
-                })
-                .eq("id", existingOrder.id);
-            if (updateOrderError) {
-                console.error("UPDATE ORDER ERROR:", updateOrderError);
-                alert("Unable to update the order total. Please try again.");
+                .update({ total: Number(existingOrder.total) + total })
+                .eq("id", orderId);
+
+            if (error) {
+                console.error(error);
+                alert(error.message);
                 return;
             }
-        }
-        // ==========================
-        // Create new order
-        // ==========================
-        else {
+        } else {
             const today = new Date();
             const datePart =
                 today.getFullYear().toString() +
                 String(today.getMonth() + 1).padStart(2, "0") +
                 String(today.getDate()).padStart(2, "0");
-            const { data: todayOrders } = await supabase
+
+            const { data: todayOrders, error: todayOrdersError } = await supabase
                 .from("orders")
                 .select("order_number")
                 .like("order_number", `${datePart}-%`);
-            const runningNumber = String(
-                (todayOrders?.length || 0) + 1
-            ).padStart(3, "0");
-            const orderNumber =
-                `${datePart}-${runningNumber}`;
-            const { data: orderData, error: orderError } =
-                await supabase
-                    .from("orders")
-                    .insert([
-                        {
-                            table_id: tableId,
-                            session_id: sessionId,
-                            total,
-                            status: "pending",
-                            order_number: orderNumber,
-                        }
-                    ])
-                    .select()
-                    .single();
-            if (orderError) {
-                console.log(orderError);
-                alert(orderError.message);
+
+            if (todayOrdersError) {
+                console.error(todayOrdersError);
+                alert("Unable to generate an order number. Please try again.");
                 return;
             }
+
+            const runningNumber = String((todayOrders?.length || 0) + 1).padStart(3, "0");
+            const orderNumber = `${datePart}-${runningNumber}`;
+
+            const { data: orderData, error: orderError } = await supabase
+                .from("orders")
+                .insert([{
+                    table_id: tableId,
+                    session_id: sessionId,
+                    total,
+                    status: "pending",
+                    order_number: orderNumber,
+                }])
+                .select()
+                .single();
+
+            if (orderError || !orderData) {
+                console.error(orderError);
+                alert(orderError?.message || "Unable to create the order.");
+                return;
+            }
+
             orderId = orderData.id;
         }
-        // ==========================
-        // Insert order items
-        // ==========================
+
         const orderItems = cart.map((item) => ({
             order_id: orderId,
             menu_item_id: item.id,
             quantity: item.quantity || 1,
             price: item.price,
         }));
+
         const { error: itemError } = await supabase
             .from("order_items")
             .insert(orderItems);
+
         if (itemError) {
-            console.log(itemError);
+            console.error(itemError);
             alert(itemError.message);
             return;
         }
-        alert(
-            `Order placed successfully! Table ${tableId}`
-        );
+
+        alert(`Order placed successfully! Table ${tableId}`);
         setCart([]);
-        loadOrders();
+        await loadOrders();
     }
+
     async function loadMenus() {
         const { data, error } = await supabase
             .from("menu_items")
             .select("*")
-            .eq("available", true)
             .order("id");
+
         console.log("MENU DATA:", data);
         console.log("MENU ERROR:", error);
         console.log("COUNT:", data?.length);
+
         if (error) {
             console.log(error);
             return;
         }
+
         setMenus(data || []);
     }
+
+    async function loadCategories() {
+
+        const { data, error } =
+            await supabase
+                .from("categories")
+                .select("*")
+                .order("id");
+
+        if (error) {
+            console.log(error);
+            return;
+        }
+
+        setCategories(data || []);
+    }
+
     async function loadOrders() {
         const { data: sessionData, error: sessionError } =
             await supabase
@@ -203,45 +248,41 @@ export default function CustomerMenuPage() {
                 .order("id", { ascending: false })
                 .limit(1)
                 .maybeSingle();
+
         if (sessionError) {
             console.error("LOAD SESSION ERROR:", sessionError);
             return;
         }
+
         if (!sessionData) {
             setOrders([]);
             return;
         }
-        const { data, error } =
-            await supabase
-                .from("orders")
-                .select(`
-                *,
-                order_items (
-                    quantity,
-                    price,
-                    menu_items (
-                        name
-                    )
-                )
-            `)
-                .eq(
-                    "session_id",
-                    sessionData.id
+
+        const { data, error } = await supabase
+            .from("orders")
+            .select(`
+                *,
+                order_items (
+                    quantity,
+                    price,
+                    menu_items (name)
                 )
-                .order(
-                    "created_at",
-                    {
-                        ascending: false,
-                    }
-                );
+            `)
+            .eq("session_id", sessionData.id)
+            .order("created_at", { ascending: false });
+
         if (error) {
-            console.log(error);
+            console.error("LOAD ORDERS ERROR:", error);
             return;
         }
+
         setOrders(data || []);
     }
+
     function addToCart(menu: MenuItem) {
         const existing = cart.find((item) => item.id === menu.id);
+
         if (existing) {
             setCart(
                 cart.map((item) =>
@@ -263,6 +304,7 @@ export default function CustomerMenuPage() {
             ]);
         }
     }
+
     function increaseQuantity(menuId: number) {
         setCart(
             cart.map((item) =>
@@ -275,6 +317,7 @@ export default function CustomerMenuPage() {
             ),
         );
     }
+
     function decreaseQuantity(menuId: number) {
         const updatedCart = cart
             .map((item) =>
@@ -286,223 +329,214 @@ export default function CustomerMenuPage() {
                     : item,
             )
             .filter((item) => (item.quantity || 0) > 0);
+
         setCart(updatedCart);
     }
+
+    const filteredMenus = menus.filter((menu) => {
+        const matchCategory =
+            selectedCategory === null ||
+            menu.category_id === selectedCategory;
+
+        const keyword = searchTerm.toLowerCase();
+
+        const matchSearch =
+            menu.name.toLowerCase().includes(keyword) ||
+            menu.description.toLowerCase().includes(keyword) ||
+            (menu.menu_code || "")
+                .toLowerCase()
+                .includes(keyword);
+
+        return matchCategory && matchSearch;
+    });
     useEffect(() => {
+        let cancelled = false;
+
         async function initializePage() {
             await loadMenus();
-            await loadOrders();
+            await loadCategories();
+            if (!cancelled) {
+                await loadOrders();
+            }
         }
-        initializePage();
+
+        void initializePage();
+
         const interval = setInterval(() => {
-            loadOrders();
+            if (!cancelled) {
+                void loadOrders();
+            }
         }, 3000);
-        return () => clearInterval(interval);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
     }, [tableId]);
+
     const total = cart.reduce(
         (sum, item) => sum + Number(item.price) * (item.quantity || 1),
         0,
     );
+
     return (
-        <div className="min-h-screen bg-gray-100">
-            <div className="max-w-6xl mx-auto p-6">
-                <div className="flex justify-between items-center mb-6">
+        <div className="min-h-screen bg-gray-100 overflow-x-hidden">
+            <div className="max-w-6xl mx-auto p-4 md:p-6">
+                <div className="flex items-center justify-between gap-4 mb-6">
                     <h1 className="text-3xl font-bold">Table {tableId}</h1>
-                    <div className="relative">
+
+                    <div
+                        className="
+    relative
+    shrink-0
+    cursor-pointer
+    ml-2
+    "
+                        onClick={() =>
+                            document
+                                .getElementById("cart-section")
+                                ?.scrollIntoView({
+                                    behavior: "smooth",
+                                })
+                        }
+                    >
                         <ShoppingCart size={32} />
+
                         {cart.length > 0 && (
                             <span
                                 className="
-          absolute
-          -top-2
-          -right-2
-          bg-red-500
-          text-white
-          text-xs
-          rounded-full
-          w-5
-          h-5
-          flex
-          items-center
-          justify-center
-        "
+            absolute
+            -top-2
+            -right-2
+            bg-red-500
+            text-white
+            text-xs
+            rounded-full
+            w-5
+            h-5
+            flex
+            items-center
+            justify-center
+            "
                             >
                                 {cart.length}
                             </span>
                         )}
                     </div>
                 </div>
-                <div className="grid md:grid-cols-3 gap-6">
+                <div className="md:hidden mb-4">
+
+                    <button
+                        onClick={() =>
+                            document
+                                .getElementById("cart-section")
+                                ?.scrollIntoView({
+                                    behavior: "smooth",
+                                })
+                        }
+                        className="
+        w-full
+        bg-green-600
+        text-white
+        py-3
+        rounded-lg
+        font-bold
+        "
+                    >
+                        View Cart ({cart.length})
+                    </button>
+
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Menu */}
-                    <div className="md:col-span-2">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {menus.map((menu) => (
-                                <div key={menu.id} className="bg-white rounded-xl shadow p-4">
-                                    {menu.image_url && (
-                                        <img
-                                            src={menu.image_url}
-                                            alt={menu.name}
-                                            className="w-full h-48 object-cover rounded-lg mb-3"
-                                        />
-                                    )}
-                                    <h2 className="text-lg font-bold text-black">{menu.name}</h2>
-                                    <p className="text-gray-600 text-sm mb-2">
-                                        {menu.description}
-                                    </p>
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-bold text-green-600">
-                                            RM {menu.price}
-                                        </span>
-                                        <button
-                                            onClick={() => addToCart(menu)}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-                                        >
-                                            Add
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+
+                    <div className="md:col-span-2 min-w-0">
+
+                        {/* Search */}
+                        <div className="mb-4">
+                            <input
+                                type="text"
+                                placeholder="Search menu (R1, Tonkotsu, Udon...)"
+                                value={searchTerm}
+                                onChange={(e) =>
+                                    setSearchTerm(e.target.value)
+                                }
+                                className="w-full border rounded-lg p-3 text-black"
+                            />
                         </div>
+
+                        {/* Category Tabs */}
+                        <CategoryTabs
+                            categories={categories}
+                            selectedCategory={selectedCategory}
+                            setSelectedCategory={setSelectedCategory}
+                        />
+
+                        {/* Menu Grid */}
+                        <MenuGrid
+                            menus={filteredMenus}
+                            addToCart={addToCart}
+                        />
+
                     </div>
+
                     {/* Cart */}
-                    <div className="bg-white rounded-xl shadow p-4 h-fit sticky top-4">
+
+                    <div
+                        id="cart-section"
+                        className="
+    bg-white
+    rounded-xl
+    shadow
+    p-4
+    h-fit
+    md:sticky
+    md:top-4
+    "
+                    >
                         <h2 className="text-2xl font-bold mb-4 text-black">
                             Cart
                         </h2>
-                        {orders.length > 0 && (
-                            <div className="mb-6">
-                                <h3 className="font-bold text-lg mb-2 text-black">
-                                    Your Orders
-                                </h3>
-                                {orders.map((order) => (
-                                    <div key={order.id} className="border rounded-lg p-3 mb-3">
-                                        <div className="font-bold text-black">
-                                            Order {order.order_number || order.id}
-                                        </div>
-                                        <div className="text-sm text-gray-500 mb-2">
-                                            {formatMalaysiaTime(order.created_at)}
-                                        </div>
-                                        {order.order_items.map((item: any, index: number) => (
-                                            <div key={index} className="text-sm text-black">
-                                                {item.menu_items?.name}
-                                                {" x"}
-                                                {item.quantity}
-                                            </div>
-                                        ))}
-                                        <div className="mt-2">
-                                            <span
-                                                className={`px-2 py-1 rounded text-xs ${order.status === "pending"
-                                                    ? "bg-yellow-100 text-yellow-700"
-                                                    : order.status === "preparing"
-                                                        ? "bg-blue-100 text-blue-700"
-                                                        : "bg-green-100 text-green-700"
-                                                    }`}
-                                            >
-                                                {order.status}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {cart.length === 0 ? (
-                            <p className="text-gray-500">No items selected</p>
-                        ) : (
-                            <>
-                                {cart.map((item) => (
-                                    <div key={item.id} className="border-b py-3">
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <p className="font-medium text-black">{item.name}</p>
-                                                <p className="text-sm text-gray-500">RM {item.price}</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => decreaseQuantity(item.id)}
-                                                    className="w-8 h-8 bg-red-500 text-white rounded"
-                                                >
-                                                    -
-                                                </button>
-                                                <span className="font-bold text-black w-6 text-center">
-                                                    {item.quantity}
-                                                </span>
-                                                <button
-                                                    onClick={() => increaseQuantity(item.id)}
-                                                    className="w-8 h-8 bg-green-500 text-white rounded"
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="text-right text-sm text-gray-700 mt-1">
-                                            RM {(item.price * (item.quantity || 1)).toFixed(2)}
-                                        </div>
-                                    </div>
-                                ))}
-                                <div className="mt-4 font-bold text-xl text-black">
-                                    Total: RM {total.toFixed(2)}
-                                </div>
-                                <button
-                                    onClick={() => setShowConfirm(true)}
-                                    className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg"
-                                >
-                                    Place Order
-                                </button>
-                            </>
-                        )}
+
+                        <OrderHistory
+                            orders={orders}
+                            formatMalaysiaTime={
+                                formatMalaysiaTime
+                            }
+                        />
+                        <CartPanel
+                            cart={cart}
+                            total={total}
+                            increaseQuantity={
+                                increaseQuantity
+                            }
+                            decreaseQuantity={
+                                decreaseQuantity
+                            }
+                            onPlaceOrder={() =>
+                                setShowConfirm(true)
+                            }
+                        />
                     </div>
                 </div>
             </div>
-            {showConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
-                    <div className="bg-white rounded-xl p-6 w-[400px] shadow-xl">
-                        <h2 className="text-xl font-bold mb-4 text-black">
-                            Confirm Order
-                        </h2>
-                        <div className="space-y-2 mb-4">
-                            {cart.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="flex justify-between"
-                                >
-                                    <span>
-                                        {item.quantity}x {item.name}
-                                    </span>
-                                    <span>
-                                        RM{" "}
-                                        {(
-                                            item.price *
-                                            (item.quantity || 1)
-                                        ).toFixed(2)}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="font-bold text-lg mb-4 text-black">
-                            Total: RM {total.toFixed(2)}
-                        </div>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() =>
-                                    setShowConfirm(false)
-                                }
-                                className="flex-1 bg-gray-500 text-white py-2 rounded"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={async () => {
-                                    setShowConfirm(false);
-                                    await placeOrder();
-                                }}
-                                className="flex-1 bg-green-600 text-white py-2 rounded"
-                            >
-                                Confirm
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmModal
+                show={showConfirm}
+                cart={cart}
+                total={total}
+                onCancel={() =>
+                    setShowConfirm(false)
+                }
+                onConfirm={async () => {
+                    setShowConfirm(false);
+                    await placeOrder();
+                }}
+            />
+
         </div>
+
+
     );
+
+
 }
