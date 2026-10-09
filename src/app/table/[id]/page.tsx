@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { ShoppingCart, Table } from "lucide-react";
@@ -496,7 +496,7 @@ export default function CustomerMenuPage() {
             shadow-lg
             "
                         >
-                            ✅ {lastAdded} added
+                            Γ£à {lastAdded} added
                         </div>
                     )
                 }
@@ -521,7 +521,7 @@ export default function CustomerMenuPage() {
         font-bold
         "
                     >
-                        🛒 {cart.length}
+                        ≡ƒ¢Æ {cart.length}
                     </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -111,25 +111,49 @@ export default function CashierPage() {
     setSessions(Object.values(grouped));
   }
 
-  async function completeTable(tableId: number) {
 
-    await supabase
+  async function closeSession(sessionId: number): Promise<boolean> {
+    const { data, error } = await supabase
       .from("table_sessions")
-      .update({
-        status: "closed"
-      })
-      .eq("table_id", tableId)
-      .eq("status", "active");
+      .update({ status: "closed" })
+      .eq("id", sessionId)
+      .eq("status", "active")
+      .select("id")
+      .maybeSingle();
 
-    await supabase
-      .from("orders")
-      .update({
-        status: "paid"
-      })
-      .eq("table_id", tableId);
+    if (error) {
+      console.error("CLOSE SESSION ERROR:", error);
+      alert(
+        "Payment was recorded, but the table session could not be closed. Please contact an administrator."
+      );
+      return false;
+    }
 
-    alert("Table completed");
+    // If no active session was updated, verify whether it is already closed.
+    if (!data) {
+      const { data: existing, error: checkError } = await supabase
+        .from("table_sessions")
+        .select("id, status")
+        .eq("id", sessionId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error("VERIFY SESSION ERROR:", checkError);
+        alert("Unable to verify the table session status.");
+        return false;
+      }
+
+      if (existing?.status !== "closed") {
+        alert(
+          "The table session was not closed. Please check the session in Supabase."
+        );
+        return false;
+      }
+    }
+
+    return true;
   }
+
 
   async function markSessionPaid(
     sessionId: number,
@@ -201,11 +225,14 @@ export default function CashierPage() {
       return;
     }
 
-    await completeTable(tableId);
+    const sessionClosed = await closeSession(sessionId);
 
-    alert(
-      `Table ${tableId} paid successfully.`
-    );
+    if (!sessionClosed) {
+      await loadOrders();
+      return;
+    }
+
+    alert(`Table ${tableId} paid successfully.`);
 
     await loadOrders();
   }
