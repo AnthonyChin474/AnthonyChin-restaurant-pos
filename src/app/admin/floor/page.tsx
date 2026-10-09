@@ -142,7 +142,7 @@ export default function FloorPage() {
             }
 
             if (occupied && occupied.length > 0) {
-                alert(`Table ${ toTable } is occupied.`);
+                alert(`Table ${toTable} is occupied.`);
                 return;
             }
 
@@ -199,7 +199,7 @@ export default function FloorPage() {
             }));
 
             alert(
-                `Table ${ fromTable } moved to Table ${ toTable }.`
+                `Table ${fromTable} moved to Table ${toTable}.`
             );
 
             await loadTables();
@@ -311,18 +311,17 @@ export default function FloorPage() {
                                         onClick={() => {
                                             if (available) {
                                                 alert(
-                                                    `Table ${ table.table_id } is available.`
+                                                    `Table ${table.table_id} is available.`
                                                 );
                                             }
                                         }}
                                         className={`
 min - h - 32 rounded - xl border - 2 p - 4
 text - left shadow - sm transition
-                                            ${
-    available
-        ? "border-cyan-600 bg-cyan-500 text-white hover:bg-cyan-600"
-        : "border-red-600 bg-red-500 text-white hover:bg-red-600"
-}
+                                            ${available
+                                                ? "border-cyan-600 bg-cyan-500 text-white hover:bg-cyan-600"
+                                                : "border-red-600 bg-red-500 text-white hover:bg-red-600"
+                                            }
 `}
                                     >
                                         <div className="text-xs font-semibold opacity-90">
@@ -376,12 +375,11 @@ text - left shadow - sm transition
                                                 </h3>
 
                                                 <span
-                                                    className={`rounded - full px - 3 py - 1 text - xs font - bold ${
-    table.status ===
-        "Waiting Payment"
-        ? "bg-amber-400 text-black"
-        : "bg-red-500 text-white"
-} `}
+                                                    className={`rounded - full px - 3 py - 1 text - xs font - bold ${table.status ===
+                                                            "Waiting Payment"
+                                                            ? "bg-amber-400 text-black"
+                                                            : "bg-red-500 text-white"
+                                                        } `}
                                                 >
                                                     {table.status}
                                                 </span>
@@ -418,7 +416,7 @@ text - left shadow - sm transition
                                                 <select
                                                     value={
                                                         targetTable[
-                                                            table.table_id
+                                                        table.table_id
                                                         ] || ""
                                                     }
                                                     onChange={(event) =>
@@ -442,9 +440,9 @@ text - left shadow - sm transition
                                                         .filter(
                                                             (target) =>
                                                                 target.status ===
-                                                                    "Available" &&
+                                                                "Available" &&
                                                                 target.table_id !==
-                                                                    table.table_id
+                                                                table.table_id
                                                         )
                                                         .map((target) => (
                                                             <option
@@ -464,7 +462,7 @@ text - left shadow - sm transition
                                                 <button
                                                     disabled={
                                                         !targetTable[
-                                                            table.table_id
+                                                        table.table_id
                                                         ] ||
                                                         movingTable !== null
                                                     }
@@ -472,14 +470,14 @@ text - left shadow - sm transition
                                                         transferTable(
                                                             table.table_id,
                                                             targetTable[
-                                                                table.table_id
+                                                            table.table_id
                                                             ]
                                                         )
                                                     }
                                                     className="mt-3 w-full rounded-lg bg-blue-600 py-3 font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
                                                 >
                                                     {movingTable ===
-                                                    table.table_id
+                                                        table.table_id
                                                         ? "Transferring..."
                                                         : "Transfer Table"}
                                                 </button>
