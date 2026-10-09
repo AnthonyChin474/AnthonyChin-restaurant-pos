@@ -9,6 +9,7 @@ import MenuGrid from "@/components/customer/MenuGrid";
 import OrderHistory from "@/components/customer/OrderHistory";
 import CartPanel from "@/components/customer/CartPanel";
 import ConfirmModal from "@/components/customer/ConfirmModal";
+import CartModal from "@/components/customer/CartModal";
 
 interface MenuItem {
     id: number;
@@ -52,135 +53,143 @@ export default function CustomerMenuPage() {
     const [searchTerm, setSearchTerm] = useState("");
 
     const [selectedCategory, setSelectedCategory] =
-        useState<number | null>(null);
+        useState<number | null>(1);
     const [categories, setCategories] =
         useState<any[]>([]);
     const [lastOrder, setLastOrder] = useState<any>(null);
 
     const [showConfirm, setShowConfirm] =
         useState(false);
-
+    const [showCart, setShowCart] =
+        useState(false);
+    const [addedMessage, setAddedMessage] =
+        useState("");
+    const [lastAdded, setLastAdded] =
+        useState("");
 
     async function placeOrder() {
-        if (cart.length === 0) {
-            alert("Your cart is empty.");
-            return;
-        }
-
         const { data: sessionData, error: sessionError } =
             await supabase
                 .from("table_sessions")
-                .select("id")
+                .select("*")
                 .eq("table_id", tableId)
                 .eq("status", "active")
-                .order("id", { ascending: false })
-                .limit(1)
                 .maybeSingle();
 
-        if (sessionError) {
-            console.error("SESSION LOOKUP ERROR:", sessionError);
-            alert("Unable to check table status. Please try again.");
+        if (!sessionData) {
+            alert(`No active session found for table ${tableId}`);
             return;
         }
 
-        let sessionId: number;
+        const filteredMenus = menus.filter((menu) => {
 
-        if (sessionData) {
-            sessionId = sessionData.id;
-        } else {
-            const { data: newSession, error: createSessionError } =
-                await supabase
-                    .from("table_sessions")
-                    .insert([{ table_id: tableId, status: "active" }])
-                    .select("id")
-                    .single();
+            const matchCategory =
+                selectedCategory === null
+                    ? true
+                    : menu.category_id === selectedCategory;
 
-            if (createSessionError || !newSession) {
-                console.error("CREATE SESSION ERROR:", createSessionError);
-                alert(createSessionError?.message || "Unable to start this table session.");
-                return;
-            }
+            const search = searchTerm.toLowerCase();
 
-            sessionId = newSession.id;
-        }
+            const matchSearch =
+                menu.name.toLowerCase().includes(search) ||
+                (menu.description || "")
+                    .toLowerCase().includes(search);
+
+            return matchCategory && matchSearch;
+        });
 
         const total = cart.reduce(
-            (sum, item) => sum + Number(item.price) * (item.quantity || 1),
+            (sum, item) =>
+                sum + Number(item.price) * (item.quantity || 1),
             0
         );
 
-        const { data: existingOrder, error: existingOrderError } =
-            await supabase
-                .from("orders")
-                .select("*")
-                .eq("session_id", sessionId)
-                .in("status", ["pending", "preparing"])
-                .order("id", { ascending: false })
-                .limit(1)
-                .maybeSingle();
+        // ==========================
+        // Check existing active order
+        // ==========================
 
-        if (existingOrderError) {
-            console.error("EXISTING ORDER ERROR:", existingOrderError);
-            alert("Unable to check existing orders. Please try again.");
-            return;
-        }
+        const { data: existingOrder } = await supabase
+            .from("orders")
+            .select("*")
+            .eq("session_id", sessionData.id)
+            .in("status", [
+                "pending",
+                "preparing",
+            ])
+            .order("id", { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
         let orderId: number;
+
+        // ==========================
+        // Existing order found
+        // ==========================
 
         if (existingOrder) {
             orderId = existingOrder.id;
 
-            const { error } = await supabase
+            await supabase
                 .from("orders")
-                .update({ total: Number(existingOrder.total) + total })
-                .eq("id", orderId);
+                .update({
+                    total:
+                        Number(existingOrder.total) +
+                        total,
+                })
+                .eq("id", existingOrder.id);
+        }
 
-            if (error) {
-                console.error(error);
-                alert(error.message);
-                return;
-            }
-        } else {
+        // ==========================
+        // Create new order
+        // ==========================
+
+        else {
             const today = new Date();
+
             const datePart =
                 today.getFullYear().toString() +
                 String(today.getMonth() + 1).padStart(2, "0") +
                 String(today.getDate()).padStart(2, "0");
 
-            const { data: todayOrders, error: todayOrdersError } = await supabase
+            const { data: todayOrders } = await supabase
                 .from("orders")
                 .select("order_number")
                 .like("order_number", `${datePart}-%`);
 
-            if (todayOrdersError) {
-                console.error(todayOrdersError);
-                alert("Unable to generate an order number. Please try again.");
-                return;
-            }
+            const runningNumber = String(
+                (todayOrders?.length || 0) + 1
+            ).padStart(3, "0");
 
-            const runningNumber = String((todayOrders?.length || 0) + 1).padStart(3, "0");
-            const orderNumber = `${datePart}-${runningNumber}`;
+            const orderNumber =
+                `${datePart}-${runningNumber}`;
 
-            const { data: orderData, error: orderError } = await supabase
-                .from("orders")
-                .insert([{
-                    table_id: tableId,
-                    session_id: sessionId,
-                    total,
-                    status: "pending",
-                    order_number: orderNumber,
-                }])
-                .select()
-                .single();
+            const { data: orderData, error: orderError } =
+                await supabase
+                    .from("orders")
+                    .insert([
+                        {
+                            table_id: tableId,
+                            session_id: sessionData.id,
+                            total,
+                            status: "pending",
+                            order_number: orderNumber,
+                        },
+                    ])
+                    .select()
+                    .single();
 
-            if (orderError || !orderData) {
-                console.error(orderError);
-                alert(orderError?.message || "Unable to create the order.");
+            if (orderError) {
+                console.log(orderError);
+                alert(orderError.message);
                 return;
             }
 
             orderId = orderData.id;
         }
+
+        // ==========================
+        // Insert order items
+        // ==========================
 
         const orderItems = cart.map((item) => ({
             order_id: orderId,
@@ -194,14 +203,18 @@ export default function CustomerMenuPage() {
             .insert(orderItems);
 
         if (itemError) {
-            console.error(itemError);
+            console.log(itemError);
             alert(itemError.message);
             return;
         }
 
-        alert(`Order placed successfully! Table ${tableId}`);
+        alert(
+            `Order placed successfully! Table ${tableId}`
+        );
+
         setCart([]);
-        await loadOrders();
+
+        loadOrders();
     }
 
     async function loadMenus() {
@@ -239,49 +252,63 @@ export default function CustomerMenuPage() {
     }
 
     async function loadOrders() {
-        const { data: sessionData, error: sessionError } =
+
+        const { data: sessionData } =
             await supabase
                 .from("table_sessions")
-                .select("id")
+                .select("*")
                 .eq("table_id", tableId)
                 .eq("status", "active")
-                .order("id", { ascending: false })
-                .limit(1)
-                .maybeSingle();
+                .single();
 
-        if (sessionError) {
-            console.error("LOAD SESSION ERROR:", sessionError);
-            return;
-        }
+        if (!sessionData) return;
 
-        if (!sessionData) {
-            setOrders([]);
-            return;
-        }
-
-        const { data, error } = await supabase
-            .from("orders")
-            .select(`
+        const { data, error } =
+            await supabase
+                .from("orders")
+                .select(`
                 *,
                 order_items (
                     quantity,
                     price,
-                    menu_items (name)
+                    menu_items (
+                        name
+                    )
                 )
             `)
-            .eq("session_id", sessionData.id)
-            .order("created_at", { ascending: false });
+                .eq(
+                    "session_id",
+                    sessionData.id
+                )
+                .order(
+                    "created_at",
+                    {
+                        ascending: false,
+                    }
+                );
 
         if (error) {
-            console.error("LOAD ORDERS ERROR:", error);
+            console.log(error);
             return;
         }
 
         setOrders(data || []);
     }
 
+
     function addToCart(menu: MenuItem) {
-        const existing = cart.find((item) => item.id === menu.id);
+
+        setAddedMessage(
+            `${menu.name} added to cart`
+        );
+        setLastAdded(menu.name);
+        setTimeout(() => {
+            setAddedMessage("");
+        }, 1500);
+
+        const existing = cart.find(
+            (item) => item.id === menu.id
+        );
 
         if (existing) {
             setCart(
@@ -289,10 +316,11 @@ export default function CustomerMenuPage() {
                     item.id === menu.id
                         ? {
                             ...item,
-                            quantity: (item.quantity || 1) + 1,
+                            quantity:
+                                (item.quantity || 1) + 1,
                         }
-                        : item,
-                ),
+                        : item
+                )
             );
         } else {
             setCart([
@@ -304,6 +332,7 @@ export default function CustomerMenuPage() {
             ]);
         }
     }
+
 
     function increaseQuantity(menuId: number) {
         setCart(
@@ -350,29 +379,45 @@ export default function CustomerMenuPage() {
         return matchCategory && matchSearch;
     });
     useEffect(() => {
-        let cancelled = false;
 
         async function initializePage() {
+
+            const { data } =
+                await supabase
+                    .from("table_sessions")
+                    .select("*")
+                    .eq("table_id", tableId)
+                    .eq("status", "active")
+                    .maybeSingle();
+
+            if (!data) {
+
+                await supabase
+                    .from("table_sessions")
+                    .insert([
+                        {
+                            table_id: tableId,
+                            status: "active",
+                        },
+                    ]);
+            }
+
             await loadMenus();
             await loadCategories();
-            if (!cancelled) {
-                await loadOrders();
-            }
+
+            await loadOrders();
         }
 
-        void initializePage();
+        initializePage();
 
         const interval = setInterval(() => {
-            if (!cancelled) {
-                void loadOrders();
-            }
+            loadOrders();
         }, 3000);
 
-        return () => {
-            cancelled = true;
-            clearInterval(interval);
-        };
+        return () => clearInterval(interval);
+
     }, [tableId]);
+
 
     const total = cart.reduce(
         (sum, item) => sum + Number(item.price) * (item.quantity || 1),
@@ -381,26 +426,36 @@ export default function CustomerMenuPage() {
 
     return (
         <div className="min-h-screen bg-gray-100 overflow-x-hidden">
-            <div className="max-w-6xl mx-auto p-4 md:p-6">
-                <div className="flex items-center justify-between gap-4 mb-6">
-                    <h1 className="text-3xl font-bold">Table {tableId}</h1>
+            <div className="max-w-6xl mx-auto p-4 md:p-6 pb-40">
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-2xl md:text-3xl font-bold truncate">
+                        Table {tableId}
+                    </h1>
 
                     <div
                         className="
     relative
     shrink-0
     cursor-pointer
-    ml-2
+    hidden md:block
     "
-                        onClick={() =>
-                            document
-                                .getElementById("cart-section")
-                                ?.scrollIntoView({
-                                    behavior: "smooth",
-                                })
-                        }
+                        onClick={() => {
+                            const cart =
+                                document.getElementById(
+                                    "cart-section"
+                                );
+
+                            if (!cart) return;
+
+                            window.scrollTo({
+                                top: cart.offsetTop - 80,
+                                behavior: "smooth",
+                            });
+                        }}
                     >
-                        <ShoppingCart size={32} />
+                        <div className="hidden md:block">
+                            <ShoppingCart size={32} />
+                        </div>
 
                         {cart.length > 0 && (
                             <span
@@ -424,28 +479,50 @@ export default function CustomerMenuPage() {
                         )}
                     </div>
                 </div>
-                <div className="md:hidden mb-4">
-
+                {
+                    addedMessage && (
+                        <div
+                            className="
+            fixed
+            bottom-20
+            left-1/2
+            -translate-x-1/2
+            bg-green-600
+            text-white
+            px-4
+            py-3
+            rounded-lg
+            z-50
+            shadow-lg
+            "
+                        >
+                            ✅ {lastAdded} added
+                        </div>
+                    )
+                }
+                <div
+                    className="
+    md:hidden
+    fixed
+    bottom-4
+    right-4
+    z-50
+    "
+                >
                     <button
-                        onClick={() =>
-                            document
-                                .getElementById("cart-section")
-                                ?.scrollIntoView({
-                                    behavior: "smooth",
-                                })
-                        }
+                        onClick={() => setShowCart(true)}
                         className="
-        w-full
         bg-green-600
         text-white
+        px-5
         py-3
-        rounded-lg
+        rounded-full
+        shadow-lg
         font-bold
         "
                     >
-                        View Cart ({cart.length})
+                        🛒 {cart.length}
                     </button>
-
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Menu */}
@@ -453,16 +530,18 @@ export default function CustomerMenuPage() {
                     <div className="md:col-span-2 min-w-0">
 
                         {/* Search */}
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                placeholder="Search menu (R1, Tonkotsu, Udon...)"
-                                value={searchTerm}
-                                onChange={(e) =>
-                                    setSearchTerm(e.target.value)
-                                }
-                                className="w-full border rounded-lg p-3 text-black"
-                            />
+                        <div id="menu-top">
+                            <div className="mb-4">
+                                <input
+                                    type="text"
+                                    placeholder="Search menu (R1, Tonkotsu, Udon...)"
+                                    value={searchTerm}
+                                    onChange={(e) =>
+                                        setSearchTerm(e.target.value)
+                                    }
+                                    className="w-full border rounded-lg p-3 text-black"
+                                />
+                            </div>
                         </div>
 
                         {/* Category Tabs */}
@@ -480,44 +559,7 @@ export default function CustomerMenuPage() {
 
                     </div>
 
-                    {/* Cart */}
 
-                    <div
-                        id="cart-section"
-                        className="
-    bg-white
-    rounded-xl
-    shadow
-    p-4
-    h-fit
-    md:sticky
-    md:top-4
-    "
-                    >
-                        <h2 className="text-2xl font-bold mb-4 text-black">
-                            Cart
-                        </h2>
-
-                        <OrderHistory
-                            orders={orders}
-                            formatMalaysiaTime={
-                                formatMalaysiaTime
-                            }
-                        />
-                        <CartPanel
-                            cart={cart}
-                            total={total}
-                            increaseQuantity={
-                                increaseQuantity
-                            }
-                            decreaseQuantity={
-                                decreaseQuantity
-                            }
-                            onPlaceOrder={() =>
-                                setShowConfirm(true)
-                            }
-                        />
-                    </div>
                 </div>
             </div>
             <ConfirmModal
@@ -530,6 +572,21 @@ export default function CustomerMenuPage() {
                 onConfirm={async () => {
                     setShowConfirm(false);
                     await placeOrder();
+                }}
+            />
+
+            <CartModal
+                show={showCart}
+                cart={cart}
+                total={total}
+                orders={orders}
+                formatMalaysiaTime={formatMalaysiaTime}
+                increaseQuantity={increaseQuantity}
+                decreaseQuantity={decreaseQuantity}
+                onClose={() => setShowCart(false)}
+                onPlaceOrder={() => {
+                    setShowCart(false);
+                    setShowConfirm(true);
                 }}
             />
 
