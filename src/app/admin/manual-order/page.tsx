@@ -514,9 +514,6 @@ function ManualOrderContent() {
                                                         {menu.name}
                                                     </h3>
 
-                                                    <span className="shrink-0 font-bold text-green-700">
-                                                        RM {Number(menu.price).toFixed(2)}
-                                                    </span>
                                                 </div>
 
                                                 <span className="shrink-0 font-bold text-green-700">

@@ -83,10 +83,11 @@ export default function MenuGrid({
                             )}
 
 
-                            <div className="mb-1 flex items-start justify-between gap-3">
-                                <div className="flex min-w-0 items-start gap-2">
+
+                            <div className="mb-1 flex items-center justify-between gap-3">
+                                <div className="flex min-w-0 items-center gap-2">
                                     {menu.menu_code && (
-                                        <span className="shrink-0 text-xs font-bold text-black">
+                                        <span className="shrink-0 text-sm font-bold text-black">
                                             {menu.menu_code}
                                         </span>
                                     )}
@@ -102,6 +103,7 @@ export default function MenuGrid({
                             </div>
 
 
+
                             <p className="text-gray-500 text-xs mb-3 line-clamp-2">
                                 {menu.description}
                             </p>
@@ -114,9 +116,6 @@ export default function MenuGrid({
 
                             <div className="flex justify-between items-center">
 
-                                <span className="font-bold text-green-600">
-                                    RM {Number(menu.price).toFixed(2)}
-                                </span>
 
                                 <div className="flex gap-2">
 
