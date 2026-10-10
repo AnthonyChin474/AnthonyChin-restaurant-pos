@@ -20,7 +20,7 @@ interface MenuItem {
     image_url: string | null;
     available: boolean;
     quantity?: number;
-    menu_code?: string;
+    menu_code?: string | null;
 }
 
 interface Order {
