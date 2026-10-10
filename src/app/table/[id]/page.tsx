@@ -68,7 +68,8 @@ export default function CustomerMenuPage() {
         useState("");
 
     async function placeOrder() {
-        const { data: sessionData, error: sessionError } =
+
+        const { data: existingSession, error: sessionError } =
             await supabase
                 .from("table_sessions")
                 .select("*")
@@ -76,10 +77,38 @@ export default function CustomerMenuPage() {
                 .eq("status", "active")
                 .maybeSingle();
 
-        if (!sessionData) {
-            alert(`No active session found for table ${tableId}`);
+        if (sessionError) {
+            console.error("Failed to check table session:", sessionError);
+            alert("Unable to check table session. Please try again.");
             return;
         }
+
+        let sessionData = existingSession;
+        let createdNewSession = false;
+
+        if (!sessionData) {
+            const { data: newSession, error: createSessionError } =
+                await supabase
+                    .from("table_sessions")
+                    .insert([
+                        {
+                            table_id: tableId,
+                            status: "active",
+                        },
+                    ])
+                    .select()
+                    .single();
+
+            if (createSessionError || !newSession) {
+                console.error("Failed to create session:", createSessionError);
+                alert("Unable to start this table session. Please try again.");
+                return;
+            }
+
+            sessionData = newSession;
+            createdNewSession = true;
+        }
+
 
         const filteredMenus = menus.filter((menu) => {
 
@@ -251,17 +280,26 @@ export default function CustomerMenuPage() {
         setCategories(data || []);
     }
 
-    async function loadOrders() {
 
-        const { data: sessionData } =
+    async function loadOrders() {
+        const { data: sessionData, error: sessionError } =
             await supabase
                 .from("table_sessions")
                 .select("*")
                 .eq("table_id", tableId)
                 .eq("status", "active")
-                .single();
+                .maybeSingle();
 
-        if (!sessionData) return;
+        if (sessionError) {
+            console.error("Failed to load table session:", sessionError);
+            return;
+        }
+
+        // No active session: customer has not started ordering
+        if (!sessionData) {
+            setOrders([]);
+            return;
+        }
 
         const { data, error } =
             await supabase
@@ -276,24 +314,19 @@ export default function CustomerMenuPage() {
                     )
                 )
             `)
-                .eq(
-                    "session_id",
-                    sessionData.id
-                )
-                .order(
-                    "created_at",
-                    {
-                        ascending: false,
-                    }
-                );
+                .eq("session_id", sessionData.id)
+                .order("created_at", {
+                    ascending: false,
+                });
 
         if (error) {
-            console.log(error);
+            console.error("Failed to load orders:", error);
             return;
         }
 
         setOrders(data || []);
     }
+
 
 
     function addToCart(menu: MenuItem) {
@@ -378,33 +411,11 @@ export default function CustomerMenuPage() {
 
         return matchCategory && matchSearch;
     });
+
     useEffect(() => {
-
         async function initializePage() {
-
-            const { data } =
-                await supabase
-                    .from("table_sessions")
-                    .select("*")
-                    .eq("table_id", tableId)
-                    .eq("status", "active")
-                    .maybeSingle();
-
-            if (!data) {
-
-                await supabase
-                    .from("table_sessions")
-                    .insert([
-                        {
-                            table_id: tableId,
-                            status: "active",
-                        },
-                    ]);
-            }
-
             await loadMenus();
             await loadCategories();
-
             await loadOrders();
         }
 
@@ -415,8 +426,8 @@ export default function CustomerMenuPage() {
         }, 3000);
 
         return () => clearInterval(interval);
-
     }, [tableId]);
+
 
 
     const total = cart.reduce(
