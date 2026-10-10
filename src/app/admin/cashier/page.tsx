@@ -1,7 +1,7 @@
 "use client";
 
 import { formatMalaysiaTime } from "@/lib/date";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isAdmin, isCashier } from "@/lib/auth";
@@ -32,7 +32,7 @@ interface SessionSummary {
   orders: Order[];
 }
 
-export default function CashierPage() {
+function CashierContent() {
   const searchParams = useSearchParams();
   const selectedTableId = Number(searchParams.get("table")) || null;
   const router = useRouter();
@@ -925,5 +925,18 @@ export default function CashierPage() {
 
     </div>
 
+  );
+}
+export default function CashierPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen p-8 text-center text-gray-600">
+          Loading cashier...
+        </div>
+      }
+    >
+      <CashierContent />
+    </Suspense>
   );
 }
