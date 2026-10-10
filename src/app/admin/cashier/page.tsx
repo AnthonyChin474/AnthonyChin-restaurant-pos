@@ -3,7 +3,7 @@
 import { formatMalaysiaTime } from "@/lib/date";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { isAdmin, isCashier } from "@/lib/auth";
 
 interface OrderItem {
@@ -33,7 +33,8 @@ interface SessionSummary {
 }
 
 export default function CashierPage() {
-
+  const searchParams = useSearchParams();
+  const selectedTableId = Number(searchParams.get("table")) || null;
   const router = useRouter();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
 
@@ -108,7 +109,15 @@ export default function CashierPage() {
       grouped[order.session_id].orders.push(order);
     });
 
-    setSessions(Object.values(grouped));
+    const allSessions = Object.values(grouped);
+
+    setSessions(
+      selectedTableId
+        ? allSessions.filter(
+          (session) => session.table_id === selectedTableId
+        )
+        : allSessions
+    );
   }
 
 
@@ -333,21 +342,50 @@ export default function CashierPage() {
       {/* HEADER */}
       {/* ========================= */}
 
-      <div className="flex justify-between items-center mb-8">
+
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
         <div>
-          <h1 className="text-4xl font-bold text-black">Cashier</h1>
+          <h1 className="text-4xl font-bold text-black">
+            {selectedTableId
+              ? `Payment - Table ${selectedTableId}`
+              : "Cashier"}
+          </h1>
 
           <p className="text-gray-500 mt-1">
-            Active tables waiting for payment
+            {selectedTableId
+              ? "Review orders and process payment for this table"
+              : "Active tables waiting for payment"}
           </p>
         </div>
 
-        <div className="bg-white px-4 py-3 rounded-lg shadow">
-          <p className="text-sm text-gray-500">Active Tables</p>
 
-          <p className="text-2xl font-bold text-black">{sessions.length}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.push("/admin/manual-order")}
+            className="rounded-lg bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700"
+          >
+            + Manual Order
+          </button>
+
+          <div className="rounded-lg bg-white px-4 py-3 shadow">
+            <p className="text-sm text-gray-500">Active Tables</p>
+            <p className="text-2xl font-bold text-black">
+              {sessions.length}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push("/admin/floor")}
+            className="rounded-lg bg-slate-700 px-4 py-3 font-semibold text-white hover:bg-slate-800"
+          >
+            ← Back to Table Management
+          </button>
         </div>
+
       </div>
+
 
       {/* ========================= */}
       {/* NO ORDERS */}
