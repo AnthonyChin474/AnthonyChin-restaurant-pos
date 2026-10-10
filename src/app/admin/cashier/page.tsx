@@ -360,13 +360,6 @@ function CashierContent() {
 
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/admin/manual-order")}
-            className="rounded-lg bg-green-600 px-4 py-3 font-semibold text-white hover:bg-green-700"
-          >
-            + Manual Order
-          </button>
 
           <div className="rounded-lg bg-white px-4 py-3 shadow">
             <p className="text-sm text-gray-500">Active Tables</p>

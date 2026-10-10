@@ -12,6 +12,7 @@ interface MenuItem {
     image_url: string | null;
     available: boolean;
     is_popular?: boolean;
+    menu_code?: string | null;
 }
 
 interface MenuGridProps {
@@ -81,27 +82,25 @@ export default function MenuGrid({
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-2 mb-1">
 
-                                <span
-                                    className="
-                                    bg-blue-100
-                                    text-blue-700
-                                    text-xs
-                                    px-2
-                                    py-1
-                                    rounded
-                                    font-bold
-                                    "
-                                >
-                                    {menu.name.split(" ")[0]}
+                            <div className="mb-1 flex items-start justify-between gap-3">
+                                <div className="flex min-w-0 items-start gap-2">
+                                    {menu.menu_code && (
+                                        <span className="shrink-0 text-xs font-bold text-black">
+                                            {menu.menu_code}
+                                        </span>
+                                    )}
+
+                                    <h2 className="min-w-0 break-words text-sm font-bold text-black">
+                                        {menu.name}
+                                    </h2>
+                                </div>
+
+                                <span className="shrink-0 whitespace-nowrap font-bold text-green-600">
+                                    RM {Number(menu.price).toFixed(2)}
                                 </span>
-
-                                <h2 className="font-bold text-black text-sm break-words">
-                                    {menu.name}
-                                </h2>
-
                             </div>
+
 
                             <p className="text-gray-500 text-xs mb-3 line-clamp-2">
                                 {menu.description}
